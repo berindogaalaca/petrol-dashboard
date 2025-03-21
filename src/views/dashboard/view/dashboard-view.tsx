@@ -38,7 +38,7 @@ export default function DashboardView() {
       <div className="mx-4 py-4">
         <BarChartView data={data} />
       </div>
-      <div className="mx-4 py-4 flex flex-col lg:flex-row gap-4 place-items-start ">
+      <div className="mx-0 sm:mx-4 py-4 flex flex-col lg:flex-row gap-4 place-items-start ">
         <TankGauge data={todayData} />
         <PieChartView data={data} />
       </div>

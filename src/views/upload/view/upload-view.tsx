@@ -16,10 +16,12 @@ import { useUploadFile } from "@/hooks/use-file";
 import { Upload, File } from "lucide-react";
 import { UploadFile } from "@/types/file";
 import { Label } from "@/components/ui/label";
+import { useRouter } from "next/navigation";
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const uploadFileMutation = useUploadFile();
+  const router = useRouter();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -37,8 +39,13 @@ export default function UploadPage() {
 
       if (result.success) {
         toast.success("File uploaded successfully", {
-          duration: 3000,
+          duration: 1000,
+          onAutoClose: () => {
+            router.refresh();
+            router.push("/");
+          },
         });
+
         setFile(null);
         const fileInput = document.getElementById(
           "file-upload"

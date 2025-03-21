@@ -37,7 +37,7 @@ export default function RootLayout({
             <Toaster position="top-right" />
             <SidebarTrigger />
             <main className="w-full flex justify-center min-h-full">
-              <div className="w-3/4">{children}</div>
+              <div className="w-full lg:w-3/4">{children}</div>
             </main>
           </SidebarProvider>
         </Providers>
