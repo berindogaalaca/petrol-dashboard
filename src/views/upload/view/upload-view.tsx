@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { useUploadSalesFile, useUploadTankFile } from "@/hooks/use-file";
 import { useRouter } from "next/navigation";
 import FileUploadCard from "@/components/upload/file-upload-card";
-import { TankFillingRecord } from "@/types/tank";
 
 export default function UploadPage() {
   const [salesFile, setSalesFile] = useState<File | null>(null);
@@ -63,9 +62,7 @@ export default function UploadPage() {
     if (!tankFile) return;
 
     try {
-      const result = await uploadTankFileMutation.mutateAsync(
-        tankFile as unknown as TankFillingRecord
-      );
+      const result = await uploadTankFileMutation.mutateAsync(tankFile);
 
       if (result.success) {
         toast.success("Tank filling data uploaded successfully", {

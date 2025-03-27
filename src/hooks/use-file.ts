@@ -3,13 +3,23 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { IResult } from "@/types";
 import axios from "axios";
 import { SalesRecord } from "@/types/sales";
-import { TankFillingRecord } from "@/types/tank";
+import { TankRecord } from "@/types/tank";
 
 export const useFile = () => {
   return useQuery<SalesRecord[]>({
     queryKey: ["sales-data"],
     queryFn: async () => {
       const { data } = await axios.get<SalesRecord[]>(endpoints.getData);
+      return data;
+    },
+  });
+};
+
+export const useTankFile = () => {
+  return useQuery<TankRecord[]>({
+    queryKey: ["tank-data"],
+    queryFn: async () => {
+      const { data } = await axios.get<TankRecord[]>(endpoints.getTankData);
       return data;
     },
   });
@@ -48,20 +58,31 @@ export const useUploadSalesFile = () => {
 
 export const useUploadTankFile = () => {
   return useMutation({
-    mutationFn: async (file: TankFillingRecord) => {
+    mutationFn: async (file: File) => {
       const formData = new FormData();
-      formData.append("file", file as unknown as Blob);
+      formData.append("file", file);
 
-      const { data } = await axios.post<IResult<any>>(
-        endpoints.uploadData,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
+      try {
+        const { data } = await axios.post<IResult<any>>(
+          endpoints.uploadTankData,
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        );
+        return data;
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response) {
+          const errorMessage =
+            error.response.data?.data?.message ||
+            error.response.data?.message ||
+            "Dosya yüklenirken bir hata oluştu";
+          throw new Error(errorMessage);
         }
-      );
-      return data;
+        throw error;
+      }
     },
   });
 };

@@ -1,11 +1,13 @@
-export interface TankFillingRecord {
-  date: string;
+export interface TankRecord {
   tankId: string;
-  productNumber: string;
-  productDescription: string;
-  initialVolume: number;
-  filledAmount: number;
-  finalVolume: number;
-  operatorId: string;
-  stationId: string;
+  tankName: string;
+  fuelType: string;
+  maxCapacity: number;
+  currentLevel: number;
+  date: Date;
+  time: string;
+  salesAmount: number;
+  refillAmount: number;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 }
