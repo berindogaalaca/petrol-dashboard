@@ -1,7 +1,6 @@
 import { endpoints } from "@/utils/axios";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { IResult } from "@/types";
-import { UploadFile } from "@/types/file";
 import axios from "axios";
 import { SalesRecord } from "@/types/sales";
 import { TankFillingRecord } from "@/types/tank";

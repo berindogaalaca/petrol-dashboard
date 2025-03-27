@@ -23,6 +23,8 @@ export interface SalesRecord {
   costCenter?: string;
   cashRegisterNumber?: string;
   extraField?: string;
+  terminalID?: string;
+  couponNumber?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }

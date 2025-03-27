@@ -2,8 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useFuelPrices } from "@/hooks/use-fuel-price";
-import { useSalesComparison } from "@/hooks/use-sales-comparison";
 import { cn } from "@/lib/utils";
 import { useMemo } from "react";
 import { toast } from "sonner";
@@ -18,7 +16,6 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import { SalesRecord } from "@/types/sales";
 
 interface StatisticsCardLineProps {

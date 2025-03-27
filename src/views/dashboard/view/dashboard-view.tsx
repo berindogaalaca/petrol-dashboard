@@ -57,12 +57,12 @@ export default function DashboardView() {
   return (
     <div className="my-20 w-full">
       <StaticsCardLine todayData={todayData} yesterdayData={yesterdayData} />
-      <div className="mx-0 sm:mx-4 py-4">
+      <div className="mx-0 lg:mx-4 py-4">
         <BarChartView data={data} />
       </div>
-      <div className="mx-0 sm:mx-4 py-4 flex flex-col lg:flex-row gap-4 place-items-start ">
-        {/* <TankGauge data={todayData} />
-        <PieChartView data={data} /> */}
+      <div className="mx-0 lg:mx-4 py-4 flex flex-col lg:flex-row gap-4 place-items-start ">
+        {/*    <TankGauge data={todayData} />*/}
+        <PieChartView data={data} />
       </div>
     </div>
   );

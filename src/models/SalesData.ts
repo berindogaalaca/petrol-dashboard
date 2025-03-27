@@ -11,7 +11,7 @@ const SalesDataSchema = new Schema<SalesRecord>(
     quantity: { type: Number, required: true },
     unitPrice: { type: Number, required: true },
     grossAmount: { type: Number, required: true },
-    unit: { type: String, required: true },
+    unit: { type: String, required: false },
     vatPercent: { type: Number, required: true },
     vatIdentifier: { type: String, required: true },
     currencyCode: { type: String, required: true },
@@ -27,6 +27,8 @@ const SalesDataSchema = new Schema<SalesRecord>(
     costCenter: { type: String },
     cashRegisterNumber: { type: String },
     extraField: { type: String },
+    terminalID: { type: String },
+    couponNumber: { type: String },
   },
   {
     timestamps: true,
