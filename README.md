@@ -44,10 +44,7 @@ DATABASE_URL="your-database-url"
 
 4. Set up the database:
 
-```bash
-npx prisma generate
-npx prisma db push
-```
+Write your database url to env
 
 5. Run the development server:
 
@@ -69,7 +66,6 @@ The application will be available at `http://localhost:3000`
 - `/src/types` - TypeScript type definitions
 - `/src/utils` - Helper functions
 - `/src/views` - Page-specific components
-- `/prisma` - Database schema and migrations
 
 ## API Integration
 
