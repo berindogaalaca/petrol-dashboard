@@ -1,23 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
-import { UploadFile } from "@/types/file";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { SalesRecord } from "@/types/sales";
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 interface BarChartProps {
-  data?: UploadFile[];
+  data?: SalesRecord[];
 }
 
 const categories = [
@@ -32,217 +42,115 @@ const categories = [
 export function BarChartView({ data }: BarChartProps) {
   const [activeTab, setActiveTab] = useState("weekly");
   const [activeCategories, setActiveCategories] = useState<string[]>(["all"]);
-  const [dailyData, setDailyData] = useState<any[]>([]);
-  const [weeklyData, setWeeklyData] = useState<any[]>([]);
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
-  const [updatedCategories, setUpdatedCategories] = useState(categories);
 
-  useEffect(() => {
-    if (!data || data.length === 0) return;
+  const parseDate = (dateStr: string | Date): Date => {
+    if (dateStr instanceof Date) return dateStr;
 
-    const sortedData = [...data].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    const parts = dateStr.split(".");
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      return new Date(year, month, day);
+    }
+
+    return new Date(dateStr);
+  };
+
+  const getCategoryFromProduct = (description: string): string | null => {
+    const lowerDesc = description.toLowerCase();
+
+    if (lowerDesc.includes("motorin")) {
+      return "diesel";
+    } else if (lowerDesc.includes("adblue") || lowerDesc.includes("ad blue")) {
+      return "adBlue";
+    } else if (lowerDesc.includes("95") || lowerDesc.includes("benzin")) {
+      return "superE5";
+    } else if (lowerDesc.includes("lpg")) {
+      return "superE10";
+    } else if (lowerDesc.includes("yağ") || lowerDesc.includes("sandviç")) {
+      return "cleaning";
+    }
+
+    return null;
+  };
+
+  const updatedCategories = useMemo(() => {
+    if (!data || data.length === 0) return categories;
+
+    const now = new Date();
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+    const calculateSalesByCategory = (startDate: Date, endDate: Date) => {
+      const filteredData = data.filter((record) => {
+        if (record.paymentLocation === "DAILY") return false;
+
+        const recordDate = parseDate(record.date);
+        return recordDate >= startDate && recordDate <= endDate;
+      });
+
+      const result: Record<string, number> = {
+        diesel: 0,
+        adBlue: 0,
+        superE5: 0,
+        superE10: 0,
+        cleaning: 0,
+      };
+
+      filteredData.forEach((record) => {
+        const category = getCategoryFromProduct(record.productDescription);
+        if (category && result[category] !== undefined) {
+          result[category] += record.grossAmount;
+        }
+      });
+
+      return result;
+    };
+
+    const currentPeriodSales = calculateSalesByCategory(oneMonthAgo, now);
+
+    const twoMonthsAgo = new Date(oneMonthAgo);
+    twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 1);
+    const previousPeriodSales = calculateSalesByCategory(
+      twoMonthsAgo,
+      oneMonthAgo
     );
 
-    if (sortedData.length >= 2) {
-      const latestData = sortedData[0];
-      const previousData = sortedData[1];
+    return categories.map((category) => {
+      if (category.value === "all") return category;
 
-      const newCategories = [...categories];
-      newCategories[1].percentage = calculatePercentageChange(
-        latestData.diesel,
-        previousData.diesel
-      );
-      newCategories[2].percentage = calculatePercentageChange(
-        latestData.adBlue,
-        previousData.adBlue
-      );
-      newCategories[3].percentage = calculatePercentageChange(
-        latestData.superE5,
-        previousData.superE5
-      );
-      newCategories[4].percentage = calculatePercentageChange(
-        latestData.superE10,
-        previousData.superE10
-      );
-      newCategories[5].percentage = calculatePercentageChange(
-        latestData.cleaning,
-        previousData.cleaning
-      );
+      const currentValue = currentPeriodSales[category.value] || 0;
+      const previousValue = previousPeriodSales[category.value] || 0;
 
-      setUpdatedCategories(newCategories);
-    }
-
-    const processedDailyData = processDailyData(sortedData);
-    setDailyData(processedDailyData);
-
-    const processedWeeklyData = processWeeklyData(sortedData);
-    setWeeklyData(processedWeeklyData);
-
-    const processedMonthlyData = processMonthlyData(sortedData);
-    setMonthlyData(processedMonthlyData);
-  }, [data]);
-
-  const calculatePercentageChange = (current: number, previous: number) => {
-    if (previous === 0) return 0;
-    return Math.round(((current - previous) / previous) * 100);
-  };
-
-  const processDailyData = (sortedData: UploadFile[]) => {
-    const latestDay = sortedData[0];
-
-    return [
-      {
-        name: "00:00",
-        diesel: Math.round(latestDay.diesel * 0.1),
-        adBlue: Math.round(latestDay.adBlue * 0.1),
-        superE5: Math.round(latestDay.superE5 * 0.1),
-        superE10: Math.round(latestDay.superE10 * 0.1),
-        cleaning: Math.round(latestDay.cleaning * 0.1),
-      },
-      {
-        name: "04:00",
-        diesel: Math.round(latestDay.diesel * 0.15),
-        adBlue: Math.round(latestDay.adBlue * 0.15),
-        superE5: Math.round(latestDay.superE5 * 0.15),
-        superE10: Math.round(latestDay.superE10 * 0.15),
-        cleaning: Math.round(latestDay.cleaning * 0.15),
-      },
-      {
-        name: "08:00",
-        diesel: Math.round(latestDay.diesel * 0.25),
-        adBlue: Math.round(latestDay.adBlue * 0.25),
-        superE5: Math.round(latestDay.superE5 * 0.25),
-        superE10: Math.round(latestDay.superE10 * 0.25),
-        cleaning: Math.round(latestDay.cleaning * 0.25),
-      },
-      {
-        name: "12:00",
-        diesel: Math.round(latestDay.diesel * 0.2),
-        adBlue: Math.round(latestDay.adBlue * 0.2),
-        superE5: Math.round(latestDay.superE5 * 0.2),
-        superE10: Math.round(latestDay.superE10 * 0.2),
-        cleaning: Math.round(latestDay.cleaning * 0.2),
-      },
-      {
-        name: "16:00",
-        diesel: Math.round(latestDay.diesel * 0.2),
-        adBlue: Math.round(latestDay.adBlue * 0.2),
-        superE5: Math.round(latestDay.superE5 * 0.2),
-        superE10: Math.round(latestDay.superE10 * 0.2),
-        cleaning: Math.round(latestDay.cleaning * 0.2),
-      },
-      {
-        name: "20:00",
-        diesel: Math.round(latestDay.diesel * 0.1),
-        adBlue: Math.round(latestDay.adBlue * 0.1),
-        superE5: Math.round(latestDay.superE5 * 0.1),
-        superE10: Math.round(latestDay.superE10 * 0.1),
-        cleaning: Math.round(latestDay.cleaning * 0.1),
-      },
-    ];
-  };
-
-  const processWeeklyData = (sortedData: UploadFile[]) => {
-    const weekDays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-    const result = [];
-
-    const daysToProcess = Math.min(7, sortedData.length);
-
-    for (let i = 0; i < daysToProcess; i++) {
-      const item = sortedData[i];
-      const date = new Date(item.date);
-      const dayName = weekDays[date.getDay()];
-
-      result.push({
-        name: dayName,
-        diesel: item.diesel,
-        adBlue: item.adBlue,
-        superE5: item.superE5,
-        superE10: item.superE10,
-        cleaning: item.cleaning,
-      });
-    }
-
-    return result.reverse();
-  };
-
-  const processMonthlyData = (sortedData: UploadFile[]) => {
-    const months = [
-      "JAN",
-      "FEB",
-      "MAR",
-      "APR",
-      "MAY",
-      "JUN",
-      "JUL",
-      "AUG",
-      "SEP",
-      "OCT",
-      "NOV",
-      "DEC",
-    ];
-    const monthlyTotals: Record<string, any> = {};
-
-    sortedData.forEach((item) => {
-      const date = new Date(item.date);
-      const monthKey = months[date.getMonth()];
-
-      if (!monthlyTotals[monthKey]) {
-        monthlyTotals[monthKey] = {
-          name: monthKey,
-          diesel: 0,
-          adBlue: 0,
-          superE5: 0,
-          superE10: 0,
-          cleaning: 0,
-          count: 0,
-        };
+      let percentageChange = 0;
+      if (previousValue > 0) {
+        percentageChange =
+          ((currentValue - previousValue) / previousValue) * 100;
+      } else if (currentValue > 0) {
+        percentageChange = 100;
       }
 
-      monthlyTotals[monthKey].diesel += item.diesel;
-      monthlyTotals[monthKey].adBlue += item.adBlue;
-      monthlyTotals[monthKey].superE5 += item.superE5;
-      monthlyTotals[monthKey].superE10 += item.superE10;
-      monthlyTotals[monthKey].cleaning += item.cleaning;
-      monthlyTotals[monthKey].count += 1;
+      return {
+        ...category,
+        percentage: Math.round(percentageChange),
+      };
     });
-
-    const result = Object.values(monthlyTotals).map((item: any) => ({
-      name: item.name,
-      diesel: Math.round(item.diesel / item.count),
-      adBlue: Math.round(item.adBlue / item.count),
-      superE5: Math.round(item.superE5 / item.count),
-      superE10: Math.round(item.superE10 / item.count),
-      cleaning: Math.round(item.cleaning / item.count),
-    }));
-
-    const monthsToDisplay = Math.min(6, result.length);
-    return result.slice(0, monthsToDisplay);
-  };
+  }, [data]);
 
   const toggleCategory = (category: string) => {
     if (category === "all") {
       setActiveCategories(["all"]);
-      return;
-    }
-
-    let newCategories = [...activeCategories];
-
-    if (newCategories.includes("all")) {
-      newCategories = newCategories.filter((c) => c !== "all");
-    }
-
-    if (newCategories.includes(category)) {
-      newCategories = newCategories.filter((c) => c !== category);
-      if (newCategories.length === 0) {
-        newCategories = ["all"];
-      }
     } else {
-      newCategories.push(category);
+      if (activeCategories.includes("all")) {
+        setActiveCategories([category]);
+      } else if (activeCategories.includes(category)) {
+        const newCategories = activeCategories.filter((c) => c !== category);
+        setActiveCategories(newCategories.length ? newCategories : ["all"]);
+      } else {
+        setActiveCategories([...activeCategories, category]);
+      }
     }
-
-    setActiveCategories(newCategories);
   };
 
   const getVisibleSeries = () => {
@@ -253,21 +161,166 @@ export function BarChartView({ data }: BarChartProps) {
   };
 
   const getChartData = () => {
-    switch (activeTab) {
-      case "daily":
-        return dailyData;
-      case "monthly":
-        return monthlyData;
-      case "weekly":
-      default:
-        return weeklyData;
+    if (!data || data.length === 0) return { labels: [], datasets: [] };
+
+    const salesData = data.filter(
+      (record) => record.paymentLocation !== "DAILY"
+    );
+
+    let processedData: Record<string, number[]> = {};
+    let labels: string[] = [];
+
+    if (activeTab === "daily") {
+      labels = [
+        "00-03",
+        "03-06",
+        "06-09",
+        "09-12",
+        "12-15",
+        "15-18",
+        "18-21",
+        "21-24",
+      ];
+      processedData = processDataByHour(salesData);
+    } else if (activeTab === "weekly") {
+      labels = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+      processedData = processDataByDay(salesData);
+    } else {
+      labels = ["1st Week", "2nd Week", "3rd Week", "4th Week"];
+      processedData = processDataByWeek(salesData);
     }
+
+    const datasets = getVisibleSeries().map((category) => {
+      const categoryInfo = updatedCategories.find((c) => c.value === category);
+      return {
+        label: categoryInfo?.name || category,
+        data: processedData[category] || Array(labels.length).fill(0),
+        backgroundColor: categoryInfo?.color || "#3713ff",
+        borderRadius: 4,
+        barThickness: 10,
+      };
+    });
+
+    return { labels, datasets };
+  };
+
+  const processDataByHour = (salesData: SalesRecord[]) => {
+    const result: Record<string, number[]> = {};
+
+    updatedCategories.slice(1).forEach((category) => {
+      result[category.value] = Array(8).fill(0);
+    });
+
+    salesData.forEach((record) => {
+      const time = record.time;
+      const hour = parseInt(time.split(":")[0], 10);
+      const hourGroup = Math.floor(hour / 3);
+
+      const category = getCategoryFromProduct(record.productDescription);
+      if (category && result[category]) {
+        result[category][hourGroup] += record.grossAmount;
+      }
+    });
+
+    return result;
+  };
+
+  const processDataByDay = (salesData: SalesRecord[]) => {
+    const result: Record<string, number[]> = {};
+
+    updatedCategories.slice(1).forEach((category) => {
+      result[category.value] = Array(7).fill(0);
+    });
+
+    salesData.forEach((record) => {
+      const date = parseDate(record.date);
+      let dayOfWeek = date.getDay();
+
+      dayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+      const category = getCategoryFromProduct(record.productDescription);
+      if (category && result[category]) {
+        result[category][dayOfWeek] += record.grossAmount;
+      }
+    });
+
+    return result;
+  };
+
+  const processDataByWeek = (salesData: SalesRecord[]) => {
+    const result: Record<string, number[]> = {};
+
+    updatedCategories.slice(1).forEach((category) => {
+      result[category.value] = Array(4).fill(0);
+    });
+
+    salesData.forEach((record) => {
+      const date = parseDate(record.date);
+      const day = date.getDate();
+
+      const weekIndex = Math.min(Math.floor((day - 1) / 7), 3);
+
+      const category = getCategoryFromProduct(record.productDescription);
+      if (category && result[category]) {
+        result[category][weekIndex] += record.grossAmount;
+      }
+    });
+
+    return result;
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        callbacks: {
+          label: function (context: any) {
+            let label = context.dataset.label || "";
+            if (label) {
+              label += ": ";
+            }
+            if (context.parsed.y !== null) {
+              label += new Intl.NumberFormat("tr-TR", {
+                style: "currency",
+                currency: "TRY",
+                notation: "compact",
+                compactDisplay: "short",
+              }).format(context.parsed.y);
+            }
+            return label;
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+        },
+      },
+      y: {
+        grid: {
+          display: true,
+          color: "#f0f0f0",
+          drawBorder: false,
+        },
+        ticks: {
+          callback: function (value: any) {
+            return value === 0 ? "0" : value / 1000 + "k";
+          },
+        },
+      },
+    },
   };
 
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-col lg:flex-row items-start lg:items-center pb-2 border-e-1">
-        <CardTitle className="text-sm font-medium text-muted-foreground col-Label-4">
+      <CardHeader className="flex flex-col lg:flex-row items-start lg:items-center pb-2 border-b">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
           Statistics
           <h2 className="text-2xl font-bold mt-1 text-black">
             Total summary of sales
@@ -277,7 +330,7 @@ export function BarChartView({ data }: BarChartProps) {
           defaultValue="weekly"
           value={activeTab}
           onValueChange={setActiveTab}
-          className="ml-auto mr-100"
+          className="ml-auto mr-80"
         >
           <TabsList className="bg-muted/50">
             <TabsTrigger value="daily" className="text-sm">
@@ -292,46 +345,9 @@ export function BarChartView({ data }: BarChartProps) {
           </TabsList>
         </Tabs>
       </CardHeader>
-      <CardContent className="flex flex-col lg:flex-row gap-8  ">
-        <div className="w-full lg:w-3/4 h-[400px] border-e-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={getChartData()}
-              margin={{
-                top: 20,
-                right: 30,
-                left: 20,
-                bottom: 5,
-              }}
-              barGap={4}
-              barSize={10}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                vertical={false}
-                stroke="#f0f0f0"
-              />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} dy={10} />
-              <YAxis axisLine={false} tickLine={false} dx={-10} />
-              <Tooltip />
-              {getVisibleSeries().map((series, index) => {
-                const category = updatedCategories.find(
-                  (c) => c.value === series
-                );
-                return (
-                  <Bar
-                    key={series}
-                    dataKey={series}
-                    fill={
-                      category?.color ||
-                      `#${Math.floor(Math.random() * 16777215).toString(16)}`
-                    }
-                    radius={[4, 4, 0, 0]}
-                  />
-                );
-              })}
-            </BarChart>
-          </ResponsiveContainer>
+      <CardContent className="flex flex-col lg:flex-row gap-8 pt-6">
+        <div className="w-full lg:w-3/4 h-[400px] border-r">
+          <Bar data={getChartData()} options={chartOptions} />
         </div>
         <div className="w-full lg:w-1/4 space-y-4">
           <div
@@ -389,7 +405,7 @@ export function BarChartView({ data }: BarChartProps) {
                 {category.percentage != null
                   ? category.percentage >= 0
                     ? "+"
-                    : "-"
+                    : ""
                   : ""}
                 {category.percentage != null
                   ? Math.abs(category.percentage)

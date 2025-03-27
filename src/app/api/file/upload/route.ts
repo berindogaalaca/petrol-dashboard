@@ -1,12 +1,15 @@
 import { NextRequest } from "next/server";
 import { parse } from "papaparse";
-import prisma from "@/lib/prisma";
 import { ApiResponse } from "@/lib/api-response";
 import { z } from "zod";
 import { csvRowSchema, SalesData, salesDataSchema } from "./schema";
+import connectToDatabase from "@/lib/mongodb";
+import SalesDataModel from "@/models/SalesData";
 
 export async function POST(req: NextRequest) {
   try {
+    await connectToDatabase();
+
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
@@ -33,21 +36,41 @@ export async function POST(req: NextRequest) {
       try {
         const validRow = csvRowSchema.parse(row);
 
-        const date = new Date(validRow.date);
+        const dateParts = validRow.date.split(".");
+        const date = new Date(
+          parseInt(dateParts[2]),
+          parseInt(dateParts[1]) - 1,
+          parseInt(dateParts[0])
+        );
         if (isNaN(date.getTime())) {
           throw new Error(`Invalid date: ${validRow.date}`);
         }
 
         const processedRow = salesDataSchema.parse({
+          transactionNumber: validRow.transactionNumber,
           date,
-          totalSales: parseFloat(validRow.totalSales) || 0,
-          totalProfit: parseFloat(validRow.totalProfit) || 0,
-          malfunctions: parseInt(validRow.malfunctions) || 0,
-          diesel: parseFloat(validRow.diesel) || 0,
-          adBlue: parseFloat(validRow.adBlue) || 0,
-          superE5: parseFloat(validRow.superE5) || 0,
-          superE10: parseFloat(validRow.superE10) || 0,
-          cleaning: parseFloat(validRow.cleaning) || 0,
+          time: validRow.time,
+          articleNumber: validRow.articleNumber,
+          productDescription: validRow.productDescription,
+          quantity: parseFloat(validRow.quantity.replace(",", ".")) || 0,
+          unitPrice: parseFloat(validRow.unitPrice.replace(",", ".")) || 0,
+          grossAmount: parseFloat(validRow.grossAmount.replace(",", ".")) || 0,
+          unit: validRow.unit,
+          vatPercent: parseFloat(validRow.vatPercent.replace(",", ".")) || 0,
+          vatIdentifier: validRow.vatIdentifier,
+          currencyCode: validRow.currencyCode,
+          vatAmount: parseFloat(validRow.vatAmount.replace(",", ".")) || 0,
+          paymentMethodId: validRow.paymentMethodId,
+          paymentLocation: validRow.paymentLocation,
+          cardNumber: validRow.cardNumber,
+          customerNumber: validRow.customerNumber,
+          personCard: validRow.personCard,
+          driverNumber: validRow.driverNumber,
+          fuelPumpNumber: validRow.fuelPumpNumber,
+          stationNumber: validRow.stationNumber,
+          costCenter: validRow.costCenter,
+          cashRegisterNumber: validRow.cashRegisterNumber,
+          extraField: validRow.extraField,
         });
 
         validData.push(processedRow);
@@ -73,10 +96,35 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await prisma.salesData.createMany({
-      data: validData,
-      skipDuplicates: true,
-    });
+    try {
+      await SalesDataModel.insertMany(validData);
+    } catch (dbError) {
+      console.error("Bulk insert failed, trying individual inserts:", dbError);
+
+      for (const item of validData) {
+        try {
+          await SalesDataModel.create(item);
+        } catch (singleError) {
+          console.error(
+            "Error inserting item:",
+            item.transactionNumber,
+            singleError
+          );
+          errors.push(
+            `Failed to insert item ${item.transactionNumber}: ${String(
+              singleError
+            )}`
+          );
+        }
+      }
+
+      if (errors.length > 0) {
+        return ApiResponse.error("Some records failed to insert", {
+          status: 207,
+          details: errors,
+        });
+      }
+    }
 
     return ApiResponse.success("CSV uploaded successfully");
   } catch (error) {
