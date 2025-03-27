@@ -25,6 +25,8 @@ export const csvRowSchema = z.object({
   costCenter: z.string().optional(),
   cashRegisterNumber: z.string().optional(),
   extraField: z.string().optional(),
+  terminalID: z.string().optional(),
+  couponNumber: z.string().optional(),
 });
 
 export const salesDataSchema = z.object({
@@ -55,6 +57,8 @@ export const salesDataSchema = z.object({
   costCenter: z.string().optional().nullable(),
   cashRegisterNumber: z.string().optional().nullable(),
   extraField: z.string().optional().nullable(),
+  terminalID: z.string().optional().nullable(),
+  couponNumber: z.string().optional().nullable(),
 });
 
 export type CsvRow = z.infer<typeof csvRowSchema>;

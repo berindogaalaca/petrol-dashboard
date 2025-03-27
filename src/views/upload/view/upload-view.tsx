@@ -6,7 +6,6 @@ import { useUploadSalesFile, useUploadTankFile } from "@/hooks/use-file";
 import { useRouter } from "next/navigation";
 import FileUploadCard from "@/components/upload/file-upload-card";
 import { TankFillingRecord } from "@/types/tank";
-import { SalesRecord } from "@/types/sales";
 
 export default function UploadPage() {
   const [salesFile, setSalesFile] = useState<File | null>(null);

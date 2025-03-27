@@ -2,8 +2,8 @@ import { NextRequest } from "next/server";
 import { parse } from "papaparse";
 import { ApiResponse } from "@/lib/api-response";
 import { z } from "zod";
-import { csvRowSchema, SalesData, salesDataSchema } from "./schema";
 import connectToDatabase from "@/lib/mongodb";
+import { SalesData, salesDataSchema } from "./schema";
 import SalesDataModel from "@/models/SalesData";
 
 export async function POST(req: NextRequest) {
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
     const csvData = buffer.toString("utf-8");
 
+
     const { data } = parse(csvData, { header: true });
 
     if (!Array.isArray(data) || data.length === 0) {
@@ -32,50 +33,62 @@ export async function POST(req: NextRequest) {
     const validData: SalesData[] = [];
     const errors: string[] = [];
 
-    for (const row of data) {
+    for (const row of data as Record<string, string>[]) {
       try {
-        const validRow = csvRowSchema.parse(row);
 
-        const dateParts = validRow.date.split(".");
+        const dateParts = row["Datum"]?.split(".") || [];
+        if (dateParts.length !== 3) {
+          throw new Error(`Invalid date format: ${row["Datum"]}`);
+        }
+
         const date = new Date(
           parseInt(dateParts[2]),
           parseInt(dateParts[1]) - 1,
           parseInt(dateParts[0])
         );
+
         if (isNaN(date.getTime())) {
-          throw new Error(`Invalid date: ${validRow.date}`);
+          throw new Error(`Invalid date: ${row["Datum"]}`);
         }
 
-        const processedRow = salesDataSchema.parse({
-          transactionNumber: validRow.transactionNumber,
+        const processedData = {
+          transactionNumber: row["LaufNr"],
           date,
-          time: validRow.time,
-          articleNumber: validRow.articleNumber,
-          productDescription: validRow.productDescription,
-          quantity: parseFloat(validRow.quantity.replace(",", ".")) || 0,
-          unitPrice: parseFloat(validRow.unitPrice.replace(",", ".")) || 0,
-          grossAmount: parseFloat(validRow.grossAmount.replace(",", ".")) || 0,
-          unit: validRow.unit,
-          vatPercent: parseFloat(validRow.vatPercent.replace(",", ".")) || 0,
-          vatIdentifier: validRow.vatIdentifier,
-          currencyCode: validRow.currencyCode,
-          vatAmount: parseFloat(validRow.vatAmount.replace(",", ".")) || 0,
-          paymentMethodId: validRow.paymentMethodId,
-          paymentLocation: validRow.paymentLocation,
-          cardNumber: validRow.cardNumber,
-          customerNumber: validRow.customerNumber,
-          personCard: validRow.personCard,
-          driverNumber: validRow.driverNumber,
-          fuelPumpNumber: validRow.fuelPumpNumber,
-          stationNumber: validRow.stationNumber,
-          costCenter: validRow.costCenter,
-          cashRegisterNumber: validRow.cashRegisterNumber,
-          extraField: validRow.extraField,
-        });
+          time: row["Zeit"],
+          articleNumber: row["ArtikelNr"],
+          productDescription: row["WarenBezeichnung"],
+          quantity: parseFloat((row["Menge"] || "0").replace(",", ".")) || 0,
+          unitPrice:
+            parseFloat((row["Einzelpreis"] || "0").replace(",", ".")) || 0,
+          grossAmount:
+            parseFloat((row["BetragBrutto"] || "0").replace(",", ".")) || 0,
+          unit: row["MengenEinheit"],
+          vatPercent:
+            parseFloat((row["MwstProzent"] || "0").replace(",", ".")) || 0,
+          vatIdentifier: row["MwstKennzeichen"],
+          currencyCode: row["WaehrungsKennzeichen"],
+          vatAmount:
+            parseFloat((row["BetragMwst"] || "0").replace(",", ".")) || 0,
+          paymentMethodId: row["ZahlungsmittelID"],
+          paymentLocation: row["OrtZahlungsvorgang"],
+          cardNumber: row["KartenNr"],
+          customerNumber: row["KundenNr"],
+          personCard: row["PersonenKarte"],
+          driverNumber: row["FahrerNr"],
+          fuelPumpNumber: row["TankplatzNr"],
+          stationNumber: row["StationsNr"],
+          costCenter: row["KostenStelle"],
+          cashRegisterNumber: row["KassenNr"],
+          extraField: row["BedienerNr"],
+        };
 
+
+        const processedRow = salesDataSchema.parse(processedData);
         validData.push(processedRow);
       } catch (error) {
+        console.error("Satır işleme hatası:", error);
         if (error instanceof z.ZodError) {
+          console.error("Zod doğrulama hatası:", error.errors);
           errors.push(
             `Row validation error: ${error.errors
               .map((e) => e.message)
@@ -89,6 +102,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+
     if (validData.length === 0) {
       return ApiResponse.error("No valid data found", {
         status: 400,
@@ -99,7 +113,7 @@ export async function POST(req: NextRequest) {
     try {
       await SalesDataModel.insertMany(validData);
     } catch (dbError) {
-      console.error("Bulk insert failed, trying individual inserts:", dbError);
+      console.error("Bulk insert failed:", dbError);
 
       for (const item of validData) {
         try {
